@@ -9,3 +9,9 @@ checkpoints/
 wandb/
 .env
 .hf_cache/
+
+# Regenerated in the repo root by scripts/test_crop.py and test_crop2.py.
+# The README figures live in docs/ and are tracked.
+/crop_before.png
+/crop_after.png
+/crop2_after.png
