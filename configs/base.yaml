@@ -1,0 +1,26 @@
+# Settled empirically in scripts/sweep_ocr.py and scripts/test_crop2.py.
+# See README "OCR configuration" for the sweep tables behind these numbers.
+
+dataset:
+  hf_name: naver-clova-ix/cord-v2
+  cache_dir: data/processed
+  min_train_words: 100 # categories below this are mapped to O
+
+ocr:
+  tesseract_exe: 'C:\Program Files\Tesseract-OCR\tesseract.exe'
+  lang: ind+eng
+  psm: 11 # sparse text; best recall on photographed receipts
+  scale: 3 # 3x upscale before OCR
+  clahe_clip: 3.0
+  clahe_grid: 8
+  min_confidence: 30 # drops background-texture fragments
+  crop: true
+
+align:
+  iou_threshold: 0.3 # 73.4% recall at psm 11; 0.5 loses 16 points
+  fallback_text_match: true # second pass for annotations IoU missed
+  fallback_y_tolerance: 40 # px; text match must be on roughly the same line
+
+model:
+  name: microsoft/layoutlmv3-base
+  max_length: 512
