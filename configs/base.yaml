@@ -1,5 +1,5 @@
 # Settled empirically in scripts/sweep_ocr.py and scripts/test_crop2.py.
-# See README "OCR configuration" for the sweep tables behind these numbers.
+# See docs/measurements.md for the sweep tables behind these numbers.
 
 dataset:
   hf_name: naver-clova-ix/cord-v2
