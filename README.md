@@ -5,10 +5,12 @@ LayoutLMv3 token classification on the CORD dataset.
 
 **The headline result is about the data, not the model: only 64.4% of CORD's
 annotated fields survive a realistic OCR pipeline.** That figure is the ceiling
-on what any downstream tagger can achieve on photographed receipts. Published
-CORD results near 96% F1 are computed on pre-filtered ground-truth boxes — an
-easier problem than a deployed system faces, because the model is handed the
-answer's location and never has to reject anything.
+on what any downstream tagger can achieve on photographed receipts. Scoring
+against pre-filtered ground-truth boxes measures an easier problem than a
+deployed system faces, because the model is handed the answer's location and
+never has to reject anything. Trained that way here, the same architecture
+scores **93.0 micro F1** on annotation input and **23.8** on real OCR output —
+one checkpoint, two input distributions.
 
 This repository documents how that number was arrived at, and builds the
 pipeline that measures against it honestly.
@@ -226,9 +228,9 @@ regenerable with `python scripts/evaluate.py --checkpoint <dir> --split test`.
 **Word-level true recall: 49.8%** (1161/2329 annotated words) — the fraction of
 the fields actually on the receipt that the system extracted correctly.
 
-**seqeval entity F1 over OCR tokens: micro 73.0, macro 52.8** — the number
-comparable to published CORD results, and the easier one, because a field OCR
-never detected is absent from both the prediction and the reference.
+**seqeval entity F1 over OCR tokens: micro 73.0, macro 52.8** — the
+conventional token-classification metric, and the easier one, because a field
+OCR never detected is absent from both the prediction and the reference.
 
 | field | P | R | F1 | support | OCR ceiling | true recall |
 | ----- | - | - | -- | ------- | ----------- | ----------- |
@@ -360,6 +362,14 @@ background text: `menu.sub.price` 0.5%, `menu.sub.nm` 1.7%, `menu.sub.cnt` 2.0%.
 Mean loss says the same thing from the other end — 0.19 for the pipeline model
 on OCR input against 4.20 for the baseline.
 
+The baseline's checkpoint carries the same caveat as the main run's. It was
+selected at epoch 18 on a median epoch-to-epoch swing of 0.38 points against a
+winning margin of 0.12, so it is also one draw from a plateau rather than a
+peak. That does not touch the conclusion: a few tenths of a point of selection
+noise cannot account for a 69.2-point drop between input distributions, or the
+49.2-point gap against the pipeline below. The caveat matters for reporting the
+baseline's 93.0 as a precise figure, not for the comparison it supports.
+
 ### Three-way, all on real OCR input
 
 |                                 | micro P | micro R | micro F1 | macro F1 | OCR ceiling | tagger acc | true recall |
@@ -387,7 +397,7 @@ entities changing hands, not a difference between models. Its 100% true recall
 in both baseline runs means the same thing: one entity.
 
 It is flagged rather than dropped. Removing the categories that embarrass a
-result is how a 96%-F1 headline gets built in the first place. Every per-field
+result is one of the ways a flattering headline gets built. Every per-field
 number here with single-digit support should be read as noise, not measurement:
 `total.menutype_cnt` (6 entities), `menu.sub.price` (3), `total.emoneyprice` (2).
 The macro averages inherit that noise, which is why micro is the headline and

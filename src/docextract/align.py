@@ -2,9 +2,10 @@
 
 CORD's valid_line covers only the labelled fields - roughly 25 words on a page
 that holds well over a hundred. Training on those words alone produces a model
-that never learns to reject anything, which is why so many published CORD
-results sit near 96% F1 and collapse on real OCR input. Running our own OCR
-gives us the background (O) class the annotations lack.
+that never learns to reject anything: the naive baseline in this repository
+scores 93.0 micro F1 on annotation input and 23.8 on real OCR output from the
+same checkpoint. Running our own OCR gives us the background (O) class the
+annotations lack.
 
 Matching is two-pass. IoU>=0.3 handles the bulk; a text-based fallback recovers
 annotations whose OCR box is offset enough to fail IoU but whose text was read
