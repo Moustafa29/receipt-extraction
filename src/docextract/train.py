@@ -76,6 +76,26 @@ CSV_COLUMNS = (
 )
 
 
+def resolve_amp(fp16: bool, device: torch.device) -> tuple[bool, object, str]:
+    """Decide whether mixed precision runs, and say why in words.
+
+    fp16 autocast is a CUDA path. On CPU it is unsupported, so the config flag
+    degrades to full precision rather than raising - otherwise every local
+    smoke run would fail on a setting that is correct for Colab. The returned
+    reason exists so a test can assert the CPU path was *skipped* rather than
+    silently passing as though fp16 had been exercised.
+    """
+    if not fp16:
+        return False, None, "disabled by config (train.fp16: false)"
+    if device.type != "cuda":
+        return False, None, (
+            f"fp16 autocast requires CUDA; device is {device.type}. "
+            "Mixed precision is UNVERIFIED by this run - exercise it on a GPU "
+            "before trusting a Colab session."
+        )
+    return True, torch.float16, "fp16 autocast with gradient scaling"
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -231,11 +251,8 @@ def train(cfg: dict, limit: int | None = None, epochs_override: int | None = Non
     output_dir.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # fp16 autocast is a CUDA path; on CPU it is both unsupported and
-    # pointless, so the flag degrades instead of failing.
-    use_amp = bool(train_cfg["fp16"]) and device.type == "cuda"
-    amp_dtype = torch.float16 if use_amp else None
-    print(f"device: {device}  mixed precision: {use_amp}")
+    use_amp, amp_dtype, amp_reason = resolve_amp(bool(train_cfg["fp16"]), device)
+    print(f"device: {device}  mixed precision: {use_amp} - {amp_reason}")
 
     if model_cfg.get("use_images"):
         raise NotImplementedError(
