@@ -24,3 +24,23 @@ align:
 model:
   name: microsoft/layoutlmv3-base
   max_length: 512
+  overlap_words: 64 # words re-encoded between consecutive windows
+  use_images: false # text+layout only; true adds the visual branch (ablation)
+
+train:
+  output_dir: outputs/layoutlmv3-ocr
+  epochs: 20
+  patience: 5 # epochs without a validation micro-F1 gain
+  batch_size: 8 # fits a 16GB T4 at 512 tokens in fp16
+  grad_accum: 4 # effective batch 32
+  lr: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  fp16: true # ignored on CPU, where fp16 autocast is unsupported
+  seed: 42
+  num_workers: 0 # encodings are precomputed; workers only add spawn overhead
+  annotation_counts: docs/annotation_counts.json
+  wandb:
+    enabled: false # falls back to the CSV log, which is always written
+    project: receipt-extraction

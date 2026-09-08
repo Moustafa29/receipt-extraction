@@ -2,7 +2,14 @@
 __pycache__/
 *.pyc
 *.egg-info/
-data/
+# The OCR-aligned corpus is tracked: 4.6 MB, and it is the input to Phase 3.
+# Rebuilding it needs Tesseract and 1-2 hours, which would make the Colab
+# training cells unrunnable from a clean clone. Everything else under data/
+# stays out.
+data/*
+!data/processed/
+data/processed/*
+!data/processed/*.jsonl
 outputs/
 checkpoints/
 .ipynb_checkpoints/

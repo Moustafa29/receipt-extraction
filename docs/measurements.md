@@ -91,8 +91,11 @@ Figures: `docs/crop_before.png`, `docs/crop2_after.png`.
 
 ## Confidence threshold
 
-`scripts/tune_confidence.py`, 20 documents. Coverage is the share of annotated
-words whose label survived alignment; length is LayoutLMv3 subword tokens.
+`scripts/tune_confidence.py`, **20-document sample**. Coverage is the share of
+annotated words whose label survived alignment; length is LayoutLMv3 subword
+tokens. The length columns here describe that sample only — full-corpus
+sequence statistics are in "Sequence length and windowing" below, and the
+sample understates the maximum by a wide margin.
 
 | min_conf | coverage | tok/doc | O share | mean | p50 | p95  | max  | over 512 |
 | -------- | -------- | ------- | ------- | ---- | --- | ---- | ---- | -------- |
@@ -117,6 +120,30 @@ Dropping OCR tokens containing no alphanumeric character (`is_noise`), at
 | after  | 136     | 63.8%    |
 
 16% fewer tokens for 0.3 points of coverage.
+
+## Sequence length and windowing
+
+All 1,000 cached documents through `microsoft/layoutlmv3-base`, counting
+subwords excluding the two special tokens. Windows are planned over whole
+words against a 510-subword budget (512 minus `<s>`/`</s>`) with a 64-word
+overlap, per `src/docextract/dataset.py`.
+
+| split      | docs | windows | multi-window docs | max windows/doc | mean subwords | p95 | max  |
+| ---------- | ---- | ------- | ----------------- | --------------- | ------------- | --- | ---- |
+| train      | 800  | 935     | 7.4%              | 12              | 210           | 685 | 4644 |
+| validation | 100  | 121     | 6.0%              | 7               | 236           | 541 | 2950 |
+| test       | 100  | 110     | 3.0%              | 9               | 189           | 482 | 3672 |
+
+The 20-document sample above put the maximum at 1080 subwords. Across the full
+corpus it is **4644**, requiring 12 windows. p95 transfers reasonably (638
+sampled against 685 measured), so the sample was representative in the middle
+of the distribution and wrong about its tail. Truncating at 512 would have
+discarded roughly three quarters of the longest receipt rather than a trailing
+fragment, which is why windowing is not optional.
+
+Longest single OCR word in the corpus: 12 subwords (`Lychee/Peach/Lemon/Mango`,
+`test-41`). No word approaches the 510-subword budget, so the oversized-word
+path in `plan_windows` is a guard, not a live case.
 
 ## Final dataset
 

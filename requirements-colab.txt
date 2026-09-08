@@ -1,0 +1,11 @@
+# Colab training dependencies.
+#
+# Do NOT install requirements.txt on Colab. That file is a frozen local
+# development environment and pins torch==2.14.0+cpu, which would replace
+# Colab's CUDA build with a CPU one and silently drop training to the CPU.
+# Colab already ships a suitable torch; only the rest is needed here.
+transformers>=5.0,<6
+datasets>=4.0
+seqeval==1.2.2
+PyYAML>=6.0
+numpy>=2.0
