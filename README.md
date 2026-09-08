@@ -13,8 +13,8 @@ answer's location and never has to reject anything.
 This repository documents how that number was arrived at, and builds the
 pipeline that measures against it honestly.
 
-**Status:** data pipeline complete (Phases 1–2). Model trained and evaluated on
-test, naive baseline measured for contrast (Phase 3).
+**Status:** trained and evaluated on the test split, with a naive baseline
+measured for contrast.
 
 ---
 
@@ -54,7 +54,7 @@ baseline" below.
 CORD receipts are photographs, not scans: curved thermal paper, low-contrast
 print, shot on patterned surfaces.
 
-![Before and after preprocessing](docs/crop_before.png)
+![A CORD receipt as photographed: low-contrast thermal print, curled paper, woven mat background](docs/crop_before.png)
 
 At default settings Tesseract read almost nothing. On the first test document it
 returned 21 tokens against 135 annotated words, and the tokens it did return
@@ -67,7 +67,7 @@ was 31.7%. The failure was detection, not alignment.
 
 ### What fixed it
 
-![After contrast enhancement and cropping](docs/crop2_after.png)
+![The same receipt after CLAHE contrast enhancement, 3x upscaling and blur-then-Otsu cropping](docs/crop2_after.png)
 
 | configuration                 | text recall |
 | ----------------------------- | ----------- |
@@ -431,6 +431,7 @@ been run.
 ## Repository layout
 
 ```
+LICENSE                     MIT
 configs/base.yaml           pipeline, model and training configuration
 src/docextract/
   labels.py                 BIO schema, category selection
@@ -450,9 +451,13 @@ scripts/
   count_annotations.py      CORD census; true-recall denominator
   build_baseline.py         annotation-only corpus for the naive baseline
   evaluate.py               score a checkpoint, emit the results table
-tests/                      106 unit tests, plus a slow end-to-end gate
+tests/                      110 tests: 106 fast, 4 behind the slow marker
 docs/measurements.md        every number, raw
 docs/results.md             test-split scores for the trained model
+docs/results_baseline_annotations.md
+                            naive baseline on annotation input (the easy case)
+docs/results_baseline_ocr.md
+                            the same baseline checkpoint on real OCR input
 docs/annotation_counts.json annotated words per category per document
 ```
 
@@ -472,14 +477,80 @@ set `ocr.tesseract_exe` in `configs/base.yaml` to the binary's path.
 
 ## Running
 
+### Tests
+
 ```bash
-pytest -q                                    # 15 unit tests, no GPU
+pytest -q                # 106 tests, CPU, ~30s
+pytest -m slow -q -rs    # 4 more: end-to-end training gate, ~4 min
+```
+
+Run the slow gate before spending GPU time. It trains on 10 documents and
+checks the things that fail silently — window coverage, merged prediction
+counts, no NaN in the metrics. Note that `fp16` is a CUDA path: on a CPU box
+that test *skips* with a message saying so, and `-rs` is what makes the skip
+visible. A green CPU run is not evidence that mixed precision works.
+
+### Building the corpora
+
+```bash
 python scripts/build_dataset.py --limit 20   # smoke run
 python scripts/build_dataset.py              # full build, 1-2 hours on CPU
+python scripts/count_annotations.py          # true-recall denominator, seconds
+python scripts/build_baseline.py             # naive baseline corpus, seconds
 ```
 
 The full build writes `data/processed/{train,validation,test}.jsonl` and prints
-the coverage report above.
+the coverage report above. Both corpora and the census are committed, so
+training needs none of this unless the OCR settings change.
+
+### Training and evaluation
+
+```bash
+python -m docextract.train --config configs/base.yaml
+python scripts/evaluate.py --checkpoint outputs/layoutlmv3-ocr/best --split test
+```
+
+Training writes `outputs/<name>/metrics.csv` (one row per epoch, flushed as it
+goes) and `outputs/<name>/best/`. It ends by comparing the winning margin
+against the epoch-to-epoch swing, so a checkpoint selected out of noise says so.
+`scripts/evaluate.py` writes the results table to `docs/results.md`.
+
+The naive baseline is the same commands against the other corpus, with an
+output directory of its own so it cannot overwrite the real run's curve:
+
+```bash
+python -m docextract.train --data-prefix baseline_ \
+    --output-dir outputs/baseline-annotations
+python scripts/evaluate.py --checkpoint outputs/baseline-annotations/best \
+    --split test --data-prefix baseline_ \
+    --out docs/results_baseline_annotations.md
+python scripts/evaluate.py --checkpoint outputs/baseline-annotations/best \
+    --split test --out docs/results_baseline_ocr.md
+```
+
+### On Colab
+
+The published results were produced on a free T4. Training on CPU is not
+practical — an epoch takes about a minute per 10 documents.
+
+```python
+!git clone https://github.com/Moustafa29/receipt-extraction.git
+%cd receipt-extraction
+!pip install -q -r requirements-colab.txt
+!pip install -q -e .
+!pip install -q pytest && pytest -m slow -q -rs    # covers fp16 on the real GPU
+!python -m docextract.train --config configs/base.yaml
+```
+
+Install `requirements-colab.txt`, **not** `requirements.txt`. The latter is a
+frozen local environment pinning `torch==2.14.0+cpu`, which would replace
+Colab's CUDA build and silently drop training onto the CPU. The Colab file
+omits torch and uses the preinstalled one.
+
+Twenty epochs took about 21 minutes. Batch 8 at 512 tokens fits a 16GB T4 in
+fp16; if a smaller card runs out of memory, halve `train.batch_size` and double
+`train.grad_accum` to hold the effective batch at 32. Copy
+`outputs/*/best/` and `metrics.csv` to Drive before the VM recycles.
 
 ## Data
 
@@ -489,3 +560,8 @@ receipts, anonymised. Downloaded automatically from Hugging Face.
 
 The BIO tagging approach follows Hwang et al., _Post-OCR parsing: building
 simple and robust parser via BIO tagging_, from the same group.
+
+## License
+
+MIT — see [LICENSE](LICENSE). CORD is redistributed by its own authors under
+their terms; this licence covers the code in this repository, not the dataset.
