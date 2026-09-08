@@ -461,7 +461,7 @@ scripts/
   count_annotations.py      CORD census; true-recall denominator
   build_baseline.py         annotation-only corpus for the naive baseline
   evaluate.py               score a checkpoint, emit the results table
-tests/                      110 tests: 106 fast, 4 behind the slow marker
+tests/                      116 tests: 112 fast, 4 behind the slow marker
 docs/measurements.md        every number, raw
 docs/results.md             test-split scores for the trained model
 docs/results_baseline_annotations.md
@@ -490,7 +490,7 @@ set `ocr.tesseract_exe` in `configs/base.yaml` to the binary's path.
 ### Tests
 
 ```bash
-pytest -q                # 106 tests, CPU, ~30s
+pytest -q                # 112 tests, CPU, ~20s
 pytest -m slow -q -rs    # 4 more: end-to-end training gate, ~4 min
 ```
 
