@@ -13,8 +13,8 @@ answer's location and never has to reject anything.
 This repository documents how that number was arrived at, and builds the
 pipeline that measures against it honestly.
 
-**Status:** data pipeline complete (Phases 1–2). First training run complete
-(20 epochs, Colab T4); test-set evaluation and the naive baseline in progress.
+**Status:** data pipeline complete (Phases 1–2). Model trained and evaluated on
+test, naive baseline measured for contrast (Phase 3).
 
 ---
 
@@ -41,6 +41,11 @@ of its training signal.
 Running our own OCR and transferring labels onto its output is what supplies the
 background class. It also exposes how much supervision OCR loses — which is the
 finding above.
+
+This is not an argument from first principles. It was trained and measured: the
+same architecture on annotations alone scores **93.0 micro F1 on annotation
+input and 23.8 on real OCR input**, from one checkpoint. See "The naive
+baseline" below.
 
 ---
 
@@ -323,6 +328,73 @@ above entity-level recall.
 
 ---
 
+## The naive baseline
+
+The claim this repository opens with — that training on annotations alone
+produces a model unable to reject anything — is testable, so it was tested. The
+same architecture, config, seed and epoch budget were trained on CORD
+`valid_line` boxes only (`scripts/build_baseline.py`), a corpus where 98.9% of
+tokens are a field and background is 1.1%. Then one checkpoint was evaluated
+twice, changing nothing but the input distribution.
+
+### Same weights, two input distributions
+
+|                                            | micro P  | micro R  | micro F1 | macro F1 | true recall |
+| ------------------------------------------ | -------- | -------- | -------- | -------- | ----------- |
+| annotation input (what CORD papers score)   | 92.6     | 93.4     | **93.0** | 84.2     | 94.8%       |
+| real OCR input (the whole page)             | 15.0     | 58.0     | **23.8** | 30.6     | 46.4%       |
+| change                                      | −77.6    | −35.4    | −69.2    | −53.6    | −48.4       |
+
+93.0 F1 is a respectable CORD number, and it is measured on the easy problem:
+every token handed to the model is a field, so the OCR ceiling is 100% and true
+recall collapses to tagger accuracy. The same weights on a real page score 23.8.
+
+**The collapse is a precision failure, not a recall failure.** Precision fell
+77.6 points; recall fell 35.4. The model still finds fields — it recovers 58% of
+the entities OCR delivered — but it also labels the store header, the date, the
+cashier line and the footer as fields, because it was never shown a token that
+was not one. Six of every seven positive predictions are wrong.
+
+The per-field precisions locate it. The sub-item categories are sprayed across
+background text: `menu.sub.price` 0.5%, `menu.sub.nm` 1.7%, `menu.sub.cnt` 2.0%.
+Mean loss says the same thing from the other end — 0.19 for the pipeline model
+on OCR input against 4.20 for the baseline.
+
+### Three-way, all on real OCR input
+
+|                                 | micro P | micro R | micro F1 | macro F1 | OCR ceiling | tagger acc | true recall |
+| ------------------------------- | ------- | ------- | -------- | -------- | ----------- | ---------- | ----------- |
+| baseline (annotations only)     | 15.0    | 58.0    | 23.8     | 30.6     | 62.4%       | 74.3%      | 46.4%       |
+| this pipeline (OCR + alignment) | 72.9    | 73.2    | 73.0     | 52.8     | 62.4%       | 79.8%      | 49.8%       |
+| difference                      | +57.9   | +15.2   | +49.2    | +22.2    | —           | +5.5       | +3.4        |
+
+**True recall barely separates the two, and that is a limit of the metric rather
+than a result.** 46.4% against 49.8% — 3.4 points — while micro F1 differs by
+49.2. Both models face the identical 62.4% OCR ceiling, and true recall is a
+recall measure: it does not penalise false positives. The baseline emits
+enormous numbers of spurious fields at no cost to its own recall.
+
+Read alone, true recall would suggest these two systems are nearly equivalent.
+One of them is usable and the other is not, and only precision shows it. True
+recall is the right headline for the ceiling argument and the wrong number to
+report by itself; the honest summary is the pair.
+
+### total.emoneyprice is noise, and stays in the table
+
+`total.emoneyprice` has 2 test entities and 5 annotated words. It scores 0.0 F1
+for the pipeline and 66.7 for the baseline — a 67-point swing that is two
+entities changing hands, not a difference between models. Its 100% true recall
+in both baseline runs means the same thing: one entity.
+
+It is flagged rather than dropped. Removing the categories that embarrass a
+result is how a 96%-F1 headline gets built in the first place. Every per-field
+number here with single-digit support should be read as noise, not measurement:
+`total.menutype_cnt` (6 entities), `menu.sub.price` (3), `total.emoneyprice` (2).
+The macro averages inherit that noise, which is why micro is the headline and
+early stopping watched micro.
+
+---
+
 ## What doesn't work
 
 **A third of the supervision is lost.** 35.6% of annotated fields have no
@@ -359,11 +431,14 @@ been run.
 ## Repository layout
 
 ```
-configs/base.yaml           pipeline configuration
+configs/base.yaml           pipeline, model and training configuration
 src/docextract/
   labels.py                 BIO schema, category selection
   ocr.py                    preprocessing, Tesseract, box normalisation
   align.py                  IoU + text-fallback label transfer
+  dataset.py                LayoutLMv3 encoding, windowing, merging
+  train.py                  fine-tuning loop, early stopping, CSV log
+  eval/metrics.py           seqeval entity scores + word-level true recall
 scripts/
   profile_labels.py         category distribution
   sweep_ocr.py              20-config preprocessing sweep
@@ -372,8 +447,13 @@ scripts/
   test_crop2.py             blur-then-Otsu crop
   tune_confidence.py        confidence/length trade
   build_dataset.py          full pipeline -> JSONL
-tests/test_align.py         15 unit tests
+  count_annotations.py      CORD census; true-recall denominator
+  build_baseline.py         annotation-only corpus for the naive baseline
+  evaluate.py               score a checkpoint, emit the results table
+tests/                      106 unit tests, plus a slow end-to-end gate
 docs/measurements.md        every number, raw
+docs/results.md             test-split scores for the trained model
+docs/annotation_counts.json annotated words per category per document
 ```
 
 ## Setup
