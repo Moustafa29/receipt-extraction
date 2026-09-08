@@ -47,6 +47,7 @@ def run(
     split: str,
     limit: int | None,
     out_path: str | None,
+    data_prefix: str = "",
 ) -> str:
     cfg = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
     model_cfg, train_cfg = cfg["model"], cfg["train"]
@@ -67,7 +68,7 @@ def run(
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, add_prefix_space=True)
     model = LayoutLMv3ForTokenClassification.from_pretrained(checkpoint_dir).to(device)
 
-    jsonl = Path(cfg["dataset"]["cache_dir"]) / f"{split}.jsonl"
+    jsonl = Path(cfg["dataset"]["cache_dir"]) / f"{data_prefix}{split}.jsonl"
     dataset = build_dataset(
         jsonl,
         tokenizer,
@@ -127,9 +128,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--out", default="docs/results.md",
                         help="markdown destination; empty string to skip")
+    parser.add_argument("--data-prefix", default="",
+                        help="corpus to evaluate on; empty for the OCR corpus, "
+                             "baseline_ for annotation-space input")
     args = parser.parse_args()
 
-    run(args.config, args.checkpoint, args.split, args.limit, args.out or None)
+    run(args.config, args.checkpoint, args.split, args.limit,
+        args.out or None, data_prefix=args.data_prefix)
 
 
 if __name__ == "__main__":

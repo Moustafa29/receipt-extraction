@@ -242,7 +242,12 @@ def curve_verdict(f1_by_epoch: list[float], best: float) -> str:
     return verdict + "\n  The peak is larger than the routine swing."
 
 
-def train(cfg: dict, limit: int | None = None, epochs_override: int | None = None) -> Path:
+def train(
+    cfg: dict,
+    limit: int | None = None,
+    epochs_override: int | None = None,
+    data_prefix: str = "",
+) -> Path:
     train_cfg = cfg["train"]
     model_cfg = cfg["model"]
 
@@ -266,7 +271,7 @@ def train(cfg: dict, limit: int | None = None, epochs_override: int | None = Non
     datasets = {}
     for split in ("train", "validation"):
         datasets[split] = build_dataset(
-            cache_dir / f"{split}.jsonl",
+            cache_dir / f"{data_prefix}{split}.jsonl",
             tokenizer,
             max_length=model_cfg["max_length"],
             overlap_words=model_cfg["overlap_words"],
@@ -451,10 +456,17 @@ def main() -> None:
                         help="documents per split; for smoke runs")
     parser.add_argument("--epochs", type=int, default=None,
                         help="override train.epochs")
+    parser.add_argument("--data-prefix", default="",
+                        help="corpus filename prefix, e.g. baseline_")
+    parser.add_argument("--output-dir", default=None,
+                        help="override train.output_dir")
     args = parser.parse_args()
 
     cfg = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
-    train(cfg, limit=args.limit, epochs_override=args.epochs)
+    if args.output_dir:
+        cfg["train"]["output_dir"] = args.output_dir
+    train(cfg, limit=args.limit, epochs_override=args.epochs,
+          data_prefix=args.data_prefix)
 
 
 if __name__ == "__main__":
