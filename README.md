@@ -4,10 +4,13 @@ Layout-aware extraction of structured fields from photographed receipts, using
 LayoutLMv3 token classification on the CORD dataset.
 
 **The headline result is about the data, not the model: only 64.4% of CORD's
-annotated fields survive a realistic OCR pipeline.** That figure is the ceiling
-on what any downstream tagger can achieve on photographed receipts. Scoring
-against pre-filtered ground-truth boxes measures an easier problem than a
-deployed system faces, because the model is handed the answer's location and
+annotated fields survive a realistic OCR pipeline.** That is the ceiling on what
+any downstream tagger can achieve on photographed receipts. It is a corpus-wide
+figure — the test split is harder, at 62.4%, and 62.4% is the ceiling the
+Results section scores against.
+
+Scoring against pre-filtered ground-truth boxes measures an easier problem than
+a deployed system faces, because the model is handed the answer's location and
 never has to reject anything. Trained that way here, the same architecture
 scores **93.0 micro F1** on annotation input and **23.8** on real OCR output —
 one checkpoint, two input distributions.
@@ -44,10 +47,8 @@ Running our own OCR and transferring labels onto its output is what supplies the
 background class. It also exposes how much supervision OCR loses — which is the
 finding above.
 
-This is not an argument from first principles. It was trained and measured: the
-same architecture on annotations alone scores **93.0 micro F1 on annotation
-input and 23.8 on real OCR input**, from one checkpoint. See "The naive
-baseline" below.
+This is not an argument from first principles. It was trained and measured — see
+"The naive baseline" below.
 
 ---
 
@@ -435,6 +436,23 @@ forms, which have different layouts.
 documents, not photographs of curved thermal paper. A scene-text engine such as
 PaddleOCR or EasyOCR would likely raise the ceiling. That comparison has not
 been run.
+
+**The visual branch was never used.** LayoutLMv3 is multimodal — text, 2D
+layout, and a ViT-style branch over image patches — but every number here comes
+from text and layout alone, with `pixel_values=None`. `model.use_images` and the
+loader that recovers the source photographs by document id are wired and tested;
+the ablation has not been run. Whether the visual branch would help on exactly
+the fields OCR mangles — `menu.cnt` sits at a 47.2% ceiling because its glyphs
+are small and low-contrast — or merely cost 197 extra positions per window, is
+unmeasured. Every result here is therefore a lower bound on what this
+architecture can do.
+
+**The epoch budget was decided by the metric that had stopped moving.** Early
+stopping watched micro F1, which flattened from epoch 15, while macro F1 climbed
+monotonically to epoch 19 and was still gaining. A 40-epoch run would show
+whether the rare categories keep improving; it has not been done, and it would
+be a different experiment rather than a continuation, since the learning-rate
+schedule anneals across whatever budget it is given.
 
 ---
 
