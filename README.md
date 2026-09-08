@@ -193,12 +193,133 @@ best epoch beats the runner-up by less than the curve's routine variation. On a
 100-document validation split a one-point F1 move is roughly 20 entities, so
 epoch 19 is one draw from a plateau rather than a maximum.
 
-**Micro plateaued from epoch 15, but macro F1 and true recall were still
-climbing at epoch 20.** Micro is dominated by `menu.nm`, which converges early;
-the rare categories that drive macro had not settled when the epoch budget ran
-out. Stopping on micro may therefore have cut the run short for precisely the
-fields with the least training signal. A 40-epoch run would settle it and has
-not been run.
+**Micro flattened from epoch 15 while macro kept climbing.** Micro gained
++1.28 points across epochs 15–19, having gained +3.11 in epoch 12 alone. Macro
+gained +2.75 over the same stretch — more than twice as fast — and rose
+monotonically from epoch 12 to 19, from 45.75 to 56.11, still adding +0.56 on
+its last improving epoch. Micro is dominated by `menu.nm`, which converges
+early; the rare categories that drive macro had not settled when the budget
+ran out.
+
+All three metrics peaked at epoch 19 and dipped slightly at 20 (micro −0.10,
+macro −0.12, true recall −0.05), so nothing was still rising at the final
+epoch. True recall was never monotonic — it dipped at epochs 13, 15 and 20.
+What the curve supports is narrower than "still climbing": macro had not
+plateaued, and stopping on micro allocated the epoch budget by the metric that
+had.
+
+A 40-epoch run would settle whether macro continues past 56 or has reached its
+own plateau. It has not been run.
+
+---
+
+## Results
+
+Test split, checkpoint from epoch 19. Full table in `docs/results.md`,
+regenerable with `python scripts/evaluate.py --checkpoint <dir> --split test`.
+
+**Word-level true recall: 49.8%** (1161/2329 annotated words) — the fraction of
+the fields actually on the receipt that the system extracted correctly.
+
+**seqeval entity F1 over OCR tokens: micro 73.0, macro 52.8** — the number
+comparable to published CORD results, and the easier one, because a field OCR
+never detected is absent from both the prediction and the reference.
+
+| field | P | R | F1 | support | OCR ceiling | true recall |
+| ----- | - | - | -- | ------- | ----------- | ----------- |
+| menu.nm | 75.8 | 80.2 | 77.9 | 242 | 70.4 | 63.3 |
+| menu.price | 83.7 | 91.1 | 87.3 | 169 | 69.0 | 62.5 |
+| menu.cnt | 79.8 | 67.6 | 73.2 | 105 | 47.2 | 32.3 |
+| total.total_price | 76.3 | 78.0 | 77.2 | 91 | 62.2 | 51.2 |
+| total.cashprice | 67.2 | 60.0 | 63.4 | 65 | 60.8 | 41.2 |
+| sub_total.subtotal_price | 72.7 | 81.4 | 76.8 | 59 | 64.8 | 57.2 |
+| total.changeprice | 67.3 | 78.7 | 72.5 | 47 | 56.7 | 48.3 |
+| menu.unitprice | 83.3 | 88.9 | 86.0 | 45 | 65.2 | 58.0 |
+| sub_total.tax_price | 57.1 | 53.3 | 55.2 | 45 | 58.6 | 43.8 |
+| menu.sub.nm | 53.1 | 44.7 | 48.6 | 38 | 70.4 | 37.0 |
+| total.menuqty_cnt | 34.5 | 38.5 | 36.4 | 26 | 49.3 | 25.4 |
+| total.creditcardprice | 40.0 | 46.2 | 42.9 | 13 | 51.0 | 31.4 |
+| sub_total.etc | 50.0 | 25.0 | 33.3 | 12 | 56.7 | 13.3 |
+| sub_total.service_price | 40.0 | 36.4 | 38.1 | 11 | 65.0 | 47.5 |
+| menu.discountprice | 70.0 | 77.8 | 73.7 | 9 | 53.3 | 46.7 |
+| menu.sub.cnt | 77.8 | 77.8 | 77.8 | 9 | 52.9 | 41.2 |
+| sub_total.discount_price | 40.0 | 33.3 | 36.4 | 6 | 56.2 | 18.8 |
+| total.menutype_cnt | 0.0 | 0.0 | 0.0 | 6 | 47.1 | 0.0 |
+| menu.sub.price | 0.0 | 0.0 | 0.0 | 3 | 15.0 | 0.0 |
+| total.emoneyprice | 0.0 | 0.0 | 0.0 | 2 | 100.0 | 0.0 |
+| **micro** | 72.9 | 73.2 | **73.0** | 1003 | 62.4 | **49.8** |
+| **macro** | 53.4 | 52.9 | 52.8 | | | |
+
+P/R/F1 and support are entity-level over OCR tokens. OCR ceiling and true
+recall are word-level against every annotated word in CORD. The two halves of
+the table are deliberately different units; see "Reading the two units" below.
+
+### The decomposition earns its keep
+
+Validation true recall was 54.45%, test 49.8% — a 4.60-point drop that looks
+like a model failing to generalise. It is not. Factoring both:
+
+|            | OCR ceiling | × tagger accuracy | = true recall |
+| ---------- | ----------- | ----------------- | ------------- |
+| validation | 67.4%       | 80.8%             | 54.45%        |
+| test       | 62.4%       | 79.8%             | 49.85%        |
+
+Holding tagger accuracy at its validation value and substituting only the test
+ceiling gives 50.46%. So **4.00 of the 4.60 points (87%) are the test split's
+lower OCR ceiling**, and 0.61 points are a 1.0-point decline in tagger
+accuracy. The model transferred; the split did not. `measurements.md` already
+flagged test as the worst split for coverage (62.3% against 67.3%), and this is
+that prediction coming true at the metric level.
+
+A single F1 could not have told these apart, which is the argument for building
+the decomposition rather than reporting one number.
+
+### The 100-word cutoff was directionally right and set too low
+
+Three categories scored 0.0 F1: `total.menutype_cnt` (105 training words),
+`total.emoneyprice` (115), `menu.sub.price` (126). All three sit just above the
+100-word threshold that decided which categories to keep. The lowest-count
+category that scored anything is `menu.sub.cnt` at 146 training words, with
+F1 77.8 — so the real floor lies between 126 and 146, not at 100.
+
+Their failures are not one failure. `menu.sub.price` has a 15.0% OCR ceiling —
+OCR barely delivers it, so there is almost nothing to learn from. But
+`total.emoneyprice` has a **100% ceiling**: OCR found every one of its words
+and the model still scored zero, which is a pure training-signal failure with
+no OCR excuse. All three have 2–6 test entities, which is the same
+too-few-to-measure problem the cutoff exists to prevent, one bracket higher.
+
+### menu.cnt is the thesis in a single field
+
+`menu.cnt` scores F1 73.2 — respectable, mid-table — and true recall 32.3%,
+the worst of any common field. The gap is its OCR ceiling: **47.2%** (108 of
+229 annotated words survived OCR), against 62.4% corpus-wide. The tagger is
+fine on what it receives (68.5% per-field accuracy); it receives less than half
+the field.
+
+The quantity column is small, low-contrast glyphs — often a single digit — and
+Tesseract loses them at a rate nothing downstream can repair. A reader looking
+only at F1 would conclude quantity extraction works about as well as anything
+else. It recovers under a third of the quantities on the receipt.
+
+### Reading the two units
+
+`sub_total.service_price` shows why the table's two halves cannot be compared
+directly: entity recall 36.4% but true recall 47.5%. Not a bug — different
+units, and the field is the most multi-word in the corpus at 2.36 words per
+entity:
+
+```
+entity recall  4 of 11 entities fully correct        = 36.4%
+true recall   19 of 40 annotated words correct       = 47.5%
+```
+
+Entity scoring is all-or-nothing: a three-word service charge with one word
+wrong scores zero, while the two correct words still count in true recall. The
+denominators differ too — 11 entities that survived OCR against all 40
+annotated words, of which OCR recovered 26 (a 65.0% ceiling). Whenever a field
+averages well over one word per entity, partial credit lifts word-level recall
+above entity-level recall.
 
 ---
 

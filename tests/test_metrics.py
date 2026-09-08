@@ -161,6 +161,30 @@ def test_false_positive_on_background_does_not_change_true_recall():
     assert recall.annotated == 4
 
 
+def test_per_field_ceiling_is_recovered_over_annotated():
+    # 2 of 8 menu.cnt words survived OCR; both tagged right.
+    gold = [["B-menu.cnt", "B-menu.cnt"]]
+    pred = [["B-menu.cnt", "B-menu.cnt"]]
+    recall = true_recall(gold, pred, {"menu.cnt": 8})
+
+    assert recall.field_ceiling("menu.cnt") == pytest.approx(0.25)
+    assert recall.field_recall("menu.cnt") == pytest.approx(0.25)
+
+
+def test_per_field_ceiling_bounds_per_field_recall():
+    """A field cannot be extracted more often than OCR detects it."""
+    gold = [["B-menu.cnt", "B-menu.cnt", "B-menu.cnt"]]
+    pred = [["B-menu.cnt", "O", "O"]]
+    recall = true_recall(gold, pred, {"menu.cnt": 10})
+
+    assert recall.field_recall("menu.cnt") <= recall.field_ceiling("menu.cnt")
+
+
+def test_per_field_ceiling_of_an_absent_field_is_zero():
+    recall = true_recall([["O"]], [["O"]], {"menu.cnt": 0})
+    assert recall.field_ceiling("menu.cnt") == 0.0
+
+
 def test_per_field_true_recall_uses_the_field_denominator():
     gold = [["B-menu.nm", "B-total.total_price"]]
     pred = [["B-menu.nm", "B-total.total_price"]]

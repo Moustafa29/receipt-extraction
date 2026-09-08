@@ -172,6 +172,16 @@ class TrueRecall:
         correct, _, annotated = self.per_field.get(name, (0, 0, 0))
         return correct / annotated if annotated else 0.0
 
+    def field_ceiling(self, name: str) -> float:
+        """Share of this field's annotated words that survived OCR.
+
+        The per-field limit. A field can only be extracted as well as it is
+        detected, and the fields differ enormously - menu.cnt sits near 47%
+        where menu.nm reaches 70%.
+        """
+        _, recovered, annotated = self.per_field.get(name, (0, 0, 0))
+        return recovered / annotated if annotated else 0.0
+
 
 def true_recall(
     gold: Sequence[Sequence[str]],
@@ -343,21 +353,26 @@ def results_table(
         f"missed): micro **{100 * entity.micro_f1:.1f}**, "
         f"macro {100 * entity.macro_f1:.1f}",
         "",
-        "| field | P | R | F1 | support | true recall |",
-        "| ----- | - | - | -- | ------- | ----------- |",
+        "P/R/F1 and support are entity-level over OCR tokens; OCR ceiling and "
+        "true recall are word-level against every annotated word in CORD. The "
+        "two halves are different units and do not compare directly.",
+        "",
+        "| field | P | R | F1 | support | OCR ceiling | true recall |",
+        "| ----- | - | - | -- | ------- | ----------- | ----------- |",
     ]
     for score in sorted(entity.per_field, key=lambda s: -s.support):
         lines.append(
             f"| {score.field} | {100 * score.precision:.1f} | "
             f"{100 * score.recall:.1f} | {100 * score.f1:.1f} | "
-            f"{score.support} | {100 * recall.field_recall(score.field):.1f} |"
+            f"{score.support} | {100 * recall.field_ceiling(score.field):.1f} | "
+            f"{100 * recall.field_recall(score.field):.1f} |"
         )
     lines += [
         f"| **micro** | {100 * entity.micro_precision:.1f} | "
         f"{100 * entity.micro_recall:.1f} | {100 * entity.micro_f1:.1f} | "
         f"{sum(s.support for s in entity.per_field)} | "
-        f"{100 * recall.recall:.1f} |",
+        f"{100 * recall.ocr_ceiling:.1f} | {100 * recall.recall:.1f} |",
         f"| **macro** | {100 * entity.macro_precision:.1f} | "
-        f"{100 * entity.macro_recall:.1f} | {100 * entity.macro_f1:.1f} | | |",
+        f"{100 * entity.macro_recall:.1f} | {100 * entity.macro_f1:.1f} | | | |",
     ]
     return "\n".join(lines)
