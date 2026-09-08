@@ -13,8 +13,8 @@ answer's location and never has to reject anything.
 This repository documents how that number was arrived at, and builds the
 pipeline that measures against it honestly.
 
-**Status:** data pipeline complete (Phases 1–2). Model training and evaluation
-in progress.
+**Status:** data pipeline complete (Phases 1–2). First training run complete
+(20 epochs, Colab T4); test-set evaluation and the naive baseline in progress.
 
 ---
 
@@ -163,6 +163,42 @@ merging would corrupt line-item reconstruction.
 Coverage stabilised by around 200 documents and stayed between 64% and 65.6%
 thereafter, so 64.4% is a property of the pipeline rather than a sampling
 artefact.
+
+---
+
+## Training
+
+LayoutLMv3-base, text and layout only — the visual branch is left off for this
+run and revisited as an ablation. 20 epochs on a Colab T4: batch 8 with
+gradient accumulation to an effective 32, fp16, early stopping on validation
+seqeval micro F1 with patience 5. Sequences past 512 subwords are windowed
+rather than truncated, so 7.4% of training documents contribute more than one
+window and long receipts carry proportionally more gradient — a bias toward
+exactly the receipts where `total.total_price` is hardest to reach.
+
+Best epoch 19: validation micro F1 **73.44**, macro F1 **56.11**, word-level
+true recall **54.45%**. The per-epoch curve is `outputs/*/metrics.csv`.
+
+Three things about that number that a single figure would hide.
+
+**The stopping criterion is not the headline number.** The checkpoint maximises
+micro F1; true recall is what the results table reports. Selecting on true
+recall would favour a model that over-predicts, because recall alone carries no
+precision penalty. So the saved checkpoint is not the one that maximises the
+number quoted as the result, and `best/selection.json` records that.
+
+**The selected epoch is not a clear peak.** The run reports a median
+epoch-to-epoch F1 swing of 0.42 points against a winning margin of 0.10 — the
+best epoch beats the runner-up by less than the curve's routine variation. On a
+100-document validation split a one-point F1 move is roughly 20 entities, so
+epoch 19 is one draw from a plateau rather than a maximum.
+
+**Micro plateaued from epoch 15, but macro F1 and true recall were still
+climbing at epoch 20.** Micro is dominated by `menu.nm`, which converges early;
+the rare categories that drive macro had not settled when the epoch budget ran
+out. Stopping on micro may therefore have cut the run short for precisely the
+fields with the least training signal. A 40-epoch run would settle it and has
+not been run.
 
 ---
 

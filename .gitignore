@@ -10,7 +10,17 @@ data/*
 !data/processed/
 data/processed/*
 !data/processed/*.jsonl
-outputs/
+# Weights stay out - a LayoutLMv3 checkpoint is ~500 MB. The numbers a run
+# produced do not: metrics.csv is the training curve and results.md is the
+# scored table, and both are evidence the README cites.
+outputs/*
+!outputs/*/
+outputs/*/*
+!outputs/*/metrics.csv
+!outputs/*/best/
+outputs/*/best/*
+!outputs/*/best/selection.json
+!outputs/*/best/results.md
 checkpoints/
 .ipynb_checkpoints/
 wandb/
